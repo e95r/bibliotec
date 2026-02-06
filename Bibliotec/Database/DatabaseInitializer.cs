@@ -46,6 +46,17 @@ CREATE TABLE IF NOT EXISTS Loans (
     FOREIGN KEY(ReaderId) REFERENCES Readers(Id),
     FOREIGN KEY(BookId) REFERENCES Books(Id)
 );
+
+CREATE TABLE IF NOT EXISTS Orders (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ReaderId INTEGER NOT NULL,
+    BookId INTEGER NOT NULL,
+    OrderDate TEXT NOT NULL,
+    Status TEXT NOT NULL,
+    ConfirmationCode TEXT NOT NULL,
+    FOREIGN KEY(ReaderId) REFERENCES Readers(Id),
+    FOREIGN KEY(BookId) REFERENCES Books(Id)
+);
 ";
         command.ExecuteNonQuery();
 
