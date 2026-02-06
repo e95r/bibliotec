@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Bibliotec.Database;
 using Bibliotec.Forms;
 using Bibliotec.Models;
@@ -32,6 +33,8 @@ public sealed class MainForm : Form
     private readonly TextBox _orderAuthorBox = new();
     private readonly TextBox _orderKeywordBox = new();
     private readonly TextBox _orderCodeBox = new();
+    private readonly ListBox _selectedBooksList = new();
+    private readonly BindingList<Book> _selectedLoanBooks = new();
 
     private readonly MenuStrip _menu = new();
     private ToolStripMenuItem _sectionsMenu = null!;
@@ -53,6 +56,8 @@ public sealed class MainForm : Form
     private Button _searchOrderButton = null!;
     private Button _createOrderButton = null!;
     private Button _issueOrderButton = null!;
+    private Button _addBookToLoanButton = null!;
+    private Button _removeBookFromLoanButton = null!;
 
     private UserRole _currentRole = UserRole.Reader;
 
@@ -325,6 +330,27 @@ public sealed class MainForm : Form
         formPanel.SetRowSpan(_returnLoanButton, 2);
         formPanel.SetRowSpan(_issueOrderButton, 2);
 
+        _selectedBooksList.DataSource = _selectedLoanBooks;
+        _selectedBooksList.DisplayMember = "Title";
+        _selectedBooksList.Dock = DockStyle.Fill;
+
+        _addBookToLoanButton = new Button { Text = "➕ Добавить", Dock = DockStyle.Top };
+        _addBookToLoanButton.Click += (_, _) => AddBookToLoan();
+        _removeBookFromLoanButton = new Button { Text = "Удалить", Dock = DockStyle.Top };
+        _removeBookFromLoanButton.Click += (_, _) => RemoveSelectedBookFromLoan();
+
+        var selectionPanel = new Panel { Dock = DockStyle.Right, Width = 220, Padding = new Padding(10) };
+        selectionPanel.Controls.Add(_selectedBooksList);
+        selectionPanel.Controls.Add(_removeBookFromLoanButton);
+        selectionPanel.Controls.Add(_addBookToLoanButton);
+        selectionPanel.Controls.Add(new Label
+        {
+            Text = "Выбранные книги",
+            Dock = DockStyle.Top,
+            Height = 20,
+            TextAlign = ContentAlignment.MiddleLeft
+        });
+
         _loansGrid.Dock = DockStyle.Fill;
         _loansGrid.ReadOnly = true;
         _loansGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -362,6 +388,7 @@ public sealed class MainForm : Form
 
         page.Controls.Add(split);
         page.Controls.Add(formPanel);
+        page.Controls.Add(selectionPanel);
 
         return page;
     }
@@ -589,7 +616,7 @@ public sealed class MainForm : Form
     {
         var books = _repository.GetBooks();
         _booksGrid.DataSource = books;
-        _bookCombo.DataSource = books.Select(b => new { b.Id, b.Title }).ToList();
+        _bookCombo.DataSource = books;
         _bookCombo.DisplayMember = "Title";
         _bookCombo.ValueMember = "Id";
     }
@@ -702,14 +729,51 @@ public sealed class MainForm : Form
 
     private void CreateLoan()
     {
-        if (_readerCombo.SelectedValue is not int readerId || _bookCombo.SelectedValue is not int bookId)
+        if (_readerCombo.SelectedValue is not int readerId)
         {
             return;
         }
 
-        _repository.CreateLoan(readerId, bookId, _loanDatePicker.Value.Date, _dueDatePicker.Value.Date);
+        if (_selectedLoanBooks.Count == 0)
+        {
+            MessageBox.Show(this, "Добавьте хотя бы одну книгу через кнопку «➕ Добавить».", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        foreach (var book in _selectedLoanBooks)
+        {
+            _repository.CreateLoan(readerId, book.Id, _loanDatePicker.Value.Date, _dueDatePicker.Value.Date);
+        }
+
+        _selectedLoanBooks.Clear();
         LoadLoans();
         LoadReports();
+    }
+
+    private void AddBookToLoan()
+    {
+        if (_bookCombo.SelectedItem is not Book book)
+        {
+            return;
+        }
+
+        if (_selectedLoanBooks.Any(selected => selected.Id == book.Id))
+        {
+            MessageBox.Show(this, "Эта книга уже добавлена в список.", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        _selectedLoanBooks.Add(book);
+    }
+
+    private void RemoveSelectedBookFromLoan()
+    {
+        if (_selectedBooksList.SelectedItem is not Book book)
+        {
+            return;
+        }
+
+        _selectedLoanBooks.Remove(book);
     }
 
     private void IssueOrder()
