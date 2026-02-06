@@ -82,6 +82,40 @@ public sealed class LibraryRepository
         return books;
     }
 
+    public IReadOnlyList<Book> SearchBooks(string? title, string? author, string? keywords)
+    {
+        var books = new List<Book>();
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+SELECT Id, Title, Author, Publisher, Year, Keywords, TotalCopies
+FROM Books
+WHERE ($title IS NULL OR Title LIKE $title)
+  AND ($author IS NULL OR Author LIKE $author)
+  AND ($keywords IS NULL OR Keywords LIKE $keywords)
+ORDER BY Title";
+        command.Parameters.AddWithValue("$title", string.IsNullOrWhiteSpace(title) ? DBNull.Value : $"%{title}%");
+        command.Parameters.AddWithValue("$author", string.IsNullOrWhiteSpace(author) ? DBNull.Value : $"%{author}%");
+        command.Parameters.AddWithValue("$keywords", string.IsNullOrWhiteSpace(keywords) ? DBNull.Value : $"%{keywords}%");
+
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            books.Add(new Book(
+                reader.GetInt32(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.GetInt32(4),
+                reader.GetString(5),
+                reader.GetInt32(6)));
+        }
+
+        return books;
+    }
+
     public void AddBook(string title, string author, string publisher, int year, string keywords, int totalCopies)
     {
         using var connection = new SqliteConnection(_connectionString);
@@ -158,6 +192,109 @@ ORDER BY Loans.LoanDate DESC";
         command.Parameters.AddWithValue("$returnDate", returnDate.ToString("yyyy-MM-dd"));
         command.Parameters.AddWithValue("$id", loanId);
         command.ExecuteNonQuery();
+    }
+
+    public string CreateOrder(int readerId, int bookId, DateTime orderDate)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var transaction = connection.BeginTransaction();
+        var availabilityCommand = connection.CreateCommand();
+        availabilityCommand.Transaction = transaction;
+        availabilityCommand.CommandText = @"
+SELECT Books.TotalCopies
+       - (SELECT COUNT(*) FROM Loans WHERE BookId = $bookId AND ReturnDate IS NULL)
+       - (SELECT COUNT(*) FROM Orders WHERE BookId = $bookId AND Status = 'Pending')
+FROM Books
+WHERE Books.Id = $bookId";
+        availabilityCommand.Parameters.AddWithValue("$bookId", bookId);
+        var available = Convert.ToInt32(availabilityCommand.ExecuteScalar() ?? 0);
+
+        if (available <= 0)
+        {
+            throw new InvalidOperationException("Нет доступных экземпляров для заказа.");
+        }
+
+        var confirmationCode = GenerateConfirmationCode();
+        var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = @"
+INSERT INTO Orders (ReaderId, BookId, OrderDate, Status, ConfirmationCode)
+VALUES ($readerId, $bookId, $orderDate, 'Pending', $code)";
+        command.Parameters.AddWithValue("$readerId", readerId);
+        command.Parameters.AddWithValue("$bookId", bookId);
+        command.Parameters.AddWithValue("$orderDate", orderDate.ToString("yyyy-MM-dd"));
+        command.Parameters.AddWithValue("$code", confirmationCode);
+        command.ExecuteNonQuery();
+        transaction.Commit();
+
+        return confirmationCode;
+    }
+
+    public IReadOnlyList<Order> GetOrders()
+    {
+        var orders = new List<Order>();
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+SELECT Orders.Id, Readers.FullName, Books.Title, Orders.OrderDate, Orders.Status, Orders.ConfirmationCode
+FROM Orders
+JOIN Readers ON Orders.ReaderId = Readers.Id
+JOIN Books ON Orders.BookId = Books.Id
+ORDER BY Orders.OrderDate DESC";
+
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            orders.Add(new Order(
+                reader.GetInt32(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                DateTime.Parse(reader.GetString(3)),
+                reader.GetString(4),
+                reader.GetString(5)));
+        }
+
+        return orders;
+    }
+
+    public (int OrderId, int ReaderId, int BookId)? GetPendingOrderByCode(string code)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+SELECT Id, ReaderId, BookId
+FROM Orders
+WHERE ConfirmationCode = $code AND Status = 'Pending'";
+        command.Parameters.AddWithValue("$code", code);
+
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        return (reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2));
+    }
+
+    public void MarkOrderIssued(int orderId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+        var command = connection.CreateCommand();
+        command.CommandText = "UPDATE Orders SET Status = 'Issued' WHERE Id = $id";
+        command.Parameters.AddWithValue("$id", orderId);
+        command.ExecuteNonQuery();
+    }
+
+    private static string GenerateConfirmationCode()
+    {
+        var random = new Random();
+        return random.Next(100000, 999999).ToString();
     }
 
     public IReadOnlyList<Loan> GetOverdueLoans()

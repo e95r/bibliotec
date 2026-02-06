@@ -18,14 +18,20 @@ public sealed class MainForm : Form
     private readonly DataGridView _readersGrid = new();
     private readonly DataGridView _booksGrid = new();
     private readonly DataGridView _loansGrid = new();
+    private readonly DataGridView _ordersGrid = new();
     private readonly DataGridView _overdueGrid = new();
     private readonly DataGridView _popularGrid = new();
 
     private readonly ComboBox _readerCombo = new();
     private readonly ComboBox _bookCombo = new();
+    private readonly ComboBox _orderReaderCombo = new();
     private readonly DateTimePicker _loanDatePicker = new();
     private readonly DateTimePicker _dueDatePicker = new();
     private readonly ComboBox _roleCombo = new();
+    private readonly TextBox _orderTitleBox = new();
+    private readonly TextBox _orderAuthorBox = new();
+    private readonly TextBox _orderKeywordBox = new();
+    private readonly TextBox _orderCodeBox = new();
 
     private readonly MenuStrip _menu = new();
     private ToolStripMenuItem _sectionsMenu = null!;
@@ -44,6 +50,9 @@ public sealed class MainForm : Form
     private Button _addLoanButton = null!;
     private Button _returnLoanButton = null!;
     private Button _refreshReportsButton = null!;
+    private Button _searchOrderButton = null!;
+    private Button _createOrderButton = null!;
+    private Button _issueOrderButton = null!;
 
     private UserRole _currentRole = UserRole.Reader;
 
@@ -225,7 +234,41 @@ public sealed class MainForm : Form
         buttonPanel.Controls.Add(_addBookButton);
         buttonPanel.Controls.Add(_deleteBookButton);
 
+        var orderPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 95,
+            ColumnCount = 6,
+            RowCount = 2,
+            Padding = new Padding(10)
+        };
+        orderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15));
+        orderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        orderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15));
+        orderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        orderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10));
+        orderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10));
+
+        orderPanel.Controls.Add(new Label { Text = "Читатель", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+        orderPanel.Controls.Add(_orderReaderCombo, 1, 0);
+        orderPanel.Controls.Add(new Label { Text = "Название", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 2, 0);
+        orderPanel.Controls.Add(_orderTitleBox, 3, 0);
+        orderPanel.Controls.Add(new Label { Text = "Автор", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 1);
+        orderPanel.Controls.Add(_orderAuthorBox, 1, 1);
+        orderPanel.Controls.Add(new Label { Text = "Ключевые слова", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 2, 1);
+        orderPanel.Controls.Add(_orderKeywordBox, 3, 1);
+
+        _searchOrderButton = new Button { Text = "Поиск", Dock = DockStyle.Fill };
+        _searchOrderButton.Click += (_, _) => SearchBooksForOrder();
+        _createOrderButton = new Button { Text = "Оформить заказ", Dock = DockStyle.Fill };
+        _createOrderButton.Click += (_, _) => CreateOrder();
+        orderPanel.Controls.Add(_searchOrderButton, 4, 0);
+        orderPanel.Controls.Add(_createOrderButton, 5, 0);
+        orderPanel.SetRowSpan(_searchOrderButton, 2);
+        orderPanel.SetRowSpan(_createOrderButton, 2);
+
         page.Controls.Add(_booksGrid);
+        page.Controls.Add(orderPanel);
         page.Controls.Add(buttonPanel);
 
         return page;
@@ -239,16 +282,18 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Top,
             Height = 110,
-            ColumnCount = 6,
+            ColumnCount = 8,
             RowCount = 2,
             Padding = new Padding(10)
         };
+        formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15));
         formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
-        formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+        formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15));
         formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15));
         formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15));
         formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10));
-        formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10));
+        formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 5));
+        formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 5));
 
         _readerCombo.DropDownStyle = ComboBoxStyle.DropDownList;
         _bookCombo.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -263,16 +308,22 @@ public sealed class MainForm : Form
         formPanel.Controls.Add(_loanDatePicker, 1, 1);
         formPanel.Controls.Add(new Label { Text = "Срок возврата", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 2, 1);
         formPanel.Controls.Add(_dueDatePicker, 3, 1);
+        formPanel.Controls.Add(new Label { Text = "Код заказа", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 4, 0);
+        formPanel.Controls.Add(_orderCodeBox, 4, 1);
 
         _addLoanButton = new Button { Text = "Оформить", Dock = DockStyle.Fill };
         _addLoanButton.Click += (_, _) => CreateLoan();
         _returnLoanButton = new Button { Text = "Возврат", Dock = DockStyle.Fill };
         _returnLoanButton.Click += (_, _) => ReturnLoan();
+        _issueOrderButton = new Button { Text = "Выдать по коду", Dock = DockStyle.Fill };
+        _issueOrderButton.Click += (_, _) => IssueOrder();
 
-        formPanel.Controls.Add(_addLoanButton, 4, 0);
-        formPanel.Controls.Add(_returnLoanButton, 5, 0);
+        formPanel.Controls.Add(_addLoanButton, 5, 0);
+        formPanel.Controls.Add(_returnLoanButton, 6, 0);
+        formPanel.Controls.Add(_issueOrderButton, 7, 0);
         formPanel.SetRowSpan(_addLoanButton, 2);
         formPanel.SetRowSpan(_returnLoanButton, 2);
+        formPanel.SetRowSpan(_issueOrderButton, 2);
 
         _loansGrid.Dock = DockStyle.Fill;
         _loansGrid.ReadOnly = true;
@@ -287,7 +338,29 @@ public sealed class MainForm : Form
             new DataGridViewTextBoxColumn { HeaderText = "Возврат", DataPropertyName = "ReturnDate", Width = 120 }
         );
 
-        page.Controls.Add(_loansGrid);
+        _ordersGrid.Dock = DockStyle.Fill;
+        _ordersGrid.ReadOnly = true;
+        _ordersGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        _ordersGrid.AutoGenerateColumns = false;
+        _ordersGrid.Columns.AddRange(
+            new DataGridViewTextBoxColumn { HeaderText = "ID", DataPropertyName = "Id", Width = 50 },
+            new DataGridViewTextBoxColumn { HeaderText = "Читатель", DataPropertyName = "ReaderName", Width = 180 },
+            new DataGridViewTextBoxColumn { HeaderText = "Книга", DataPropertyName = "BookTitle", Width = 180 },
+            new DataGridViewTextBoxColumn { HeaderText = "Дата заказа", DataPropertyName = "OrderDate", Width = 110 },
+            new DataGridViewTextBoxColumn { HeaderText = "Статус", DataPropertyName = "Status", Width = 90 },
+            new DataGridViewTextBoxColumn { HeaderText = "Код", DataPropertyName = "ConfirmationCode", Width = 90 }
+        );
+
+        var split = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Horizontal,
+            SplitterDistance = 260
+        };
+        split.Panel1.Controls.Add(_loansGrid);
+        split.Panel2.Controls.Add(_ordersGrid);
+
+        page.Controls.Add(split);
         page.Controls.Add(formPanel);
 
         return page;
@@ -350,6 +423,7 @@ public sealed class MainForm : Form
         LoadReaders();
         LoadBooks();
         LoadLoans();
+        LoadOrders();
         LoadReports();
     }
 
@@ -397,7 +471,16 @@ public sealed class MainForm : Form
         _deleteBookButton.Visible = allowManageCatalog;
         _addLoanButton.Enabled = allowManageCatalog;
         _returnLoanButton.Enabled = allowManageCatalog;
+        _issueOrderButton.Enabled = allowManageCatalog;
         _refreshReportsButton.Enabled = role is UserRole.Librarian or UserRole.Manager;
+
+        var allowReaderOrder = role is UserRole.Reader;
+        _orderReaderCombo.Enabled = allowReaderOrder;
+        _orderTitleBox.Enabled = allowReaderOrder;
+        _orderAuthorBox.Enabled = allowReaderOrder;
+        _orderKeywordBox.Enabled = allowReaderOrder;
+        _searchOrderButton.Enabled = allowReaderOrder;
+        _createOrderButton.Enabled = allowReaderOrder;
 
         _tabs.SelectedTab = _homeTab;
     }
@@ -496,6 +579,10 @@ public sealed class MainForm : Form
         _readerCombo.DataSource = readers.Select(r => new { r.Id, r.FullName }).ToList();
         _readerCombo.DisplayMember = "FullName";
         _readerCombo.ValueMember = "Id";
+        _orderReaderCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+        _orderReaderCombo.DataSource = readers.Select(r => new { r.Id, r.FullName }).ToList();
+        _orderReaderCombo.DisplayMember = "FullName";
+        _orderReaderCombo.ValueMember = "Id";
     }
 
     private void LoadBooks()
@@ -510,6 +597,11 @@ public sealed class MainForm : Form
     private void LoadLoans()
     {
         _loansGrid.DataSource = _repository.GetLoans();
+    }
+
+    private void LoadOrders()
+    {
+        _ordersGrid.DataSource = _repository.GetOrders();
     }
 
     private void LoadReports()
@@ -576,6 +668,38 @@ public sealed class MainForm : Form
         LoadBooks();
     }
 
+    private void SearchBooksForOrder()
+    {
+        var books = _repository.SearchBooks(_orderTitleBox.Text, _orderAuthorBox.Text, _orderKeywordBox.Text);
+        _booksGrid.DataSource = books;
+    }
+
+    private void CreateOrder()
+    {
+        if (_orderReaderCombo.SelectedValue is not int readerId)
+        {
+            MessageBox.Show(this, "Выберите читателя.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (_booksGrid.CurrentRow?.DataBoundItem is not Book book)
+        {
+            MessageBox.Show(this, "Выберите книгу для заказа.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        try
+        {
+            var code = _repository.CreateOrder(readerId, book.Id, DateTime.Today);
+            LoadOrders();
+            MessageBox.Show(this, $"Заказ оформлен. Код подтверждения: {code}.", "Успешно", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (InvalidOperationException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
     private void CreateLoan()
     {
         if (_readerCombo.SelectedValue is not int readerId || _bookCombo.SelectedValue is not int bookId)
@@ -586,6 +710,30 @@ public sealed class MainForm : Form
         _repository.CreateLoan(readerId, bookId, _loanDatePicker.Value.Date, _dueDatePicker.Value.Date);
         LoadLoans();
         LoadReports();
+    }
+
+    private void IssueOrder()
+    {
+        var code = _orderCodeBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            MessageBox.Show(this, "Введите код подтверждения.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var pendingOrder = _repository.GetPendingOrderByCode(code);
+        if (pendingOrder is null)
+        {
+            MessageBox.Show(this, "Заказ с таким кодом не найден или уже выдан.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        _repository.CreateLoan(pendingOrder.Value.ReaderId, pendingOrder.Value.BookId, _loanDatePicker.Value.Date, _dueDatePicker.Value.Date);
+        _repository.MarkOrderIssued(pendingOrder.Value.OrderId);
+        LoadLoans();
+        LoadOrders();
+        LoadReports();
+        MessageBox.Show(this, "Заказ выдан и оформлен как выдача.", "Успешно", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void ReturnLoan()
@@ -603,6 +751,7 @@ public sealed class MainForm : Form
 
         _repository.ReturnLoan(loan.Id, DateTime.Today);
         LoadLoans();
+        LoadOrders();
         LoadReports();
     }
 
