@@ -8,6 +8,12 @@ public sealed class MainForm : Form
 {
     private readonly LibraryRepository _repository = new(DatabaseInitializer.ConnectionString);
 
+    private readonly TabControl _tabs = new();
+    private readonly TabPage _readersTab;
+    private readonly TabPage _booksTab;
+    private readonly TabPage _loansTab;
+    private readonly TabPage _reportsTab;
+
     private readonly DataGridView _readersGrid = new();
     private readonly DataGridView _booksGrid = new();
     private readonly DataGridView _loansGrid = new();
@@ -26,15 +32,78 @@ public sealed class MainForm : Form
         Height = 700;
         StartPosition = FormStartPosition.CenterScreen;
 
-        var tabs = new TabControl { Dock = DockStyle.Fill };
-        tabs.TabPages.Add(CreateReadersTab());
-        tabs.TabPages.Add(CreateBooksTab());
-        tabs.TabPages.Add(CreateLoansTab());
-        tabs.TabPages.Add(CreateReportsTab());
+        _readersTab = CreateReadersTab();
+        _booksTab = CreateBooksTab();
+        _loansTab = CreateLoansTab();
+        _reportsTab = CreateReportsTab();
 
-        Controls.Add(tabs);
+        _tabs.Dock = DockStyle.Fill;
+        _tabs.TabPages.AddRange([_readersTab, _booksTab, _loansTab, _reportsTab]);
+
+        var menu = BuildMenu();
+        MainMenuStrip = menu;
+        Controls.Add(_tabs);
+        Controls.Add(menu);
 
         LoadData();
+    }
+
+    private MenuStrip BuildMenu()
+    {
+        var menu = new MenuStrip();
+
+        var fileMenu = new ToolStripMenuItem("Файл");
+        fileMenu.DropDownItems.Add(new ToolStripMenuItem("Обновить всё", null, (_, _) => LoadData()));
+        fileMenu.DropDownItems.Add(new ToolStripSeparator());
+        fileMenu.DropDownItems.Add(new ToolStripMenuItem("Выход", null, (_, _) => Close()));
+
+        var sectionsMenu = new ToolStripMenuItem("Разделы");
+        sectionsMenu.DropDownItems.Add(CreateNavigateItem("Читатели", _readersTab));
+        sectionsMenu.DropDownItems.Add(CreateNavigateItem("Книги", _booksTab));
+        sectionsMenu.DropDownItems.Add(CreateNavigateItem("Выдачи", _loansTab));
+        sectionsMenu.DropDownItems.Add(CreateNavigateItem("Отчёты", _reportsTab));
+
+        var directoriesMenu = new ToolStripMenuItem("Справочники");
+        var readersMenu = new ToolStripMenuItem("Читатели");
+        readersMenu.DropDownItems.Add(new ToolStripMenuItem("Добавить", null, (_, _) => AddReader()));
+        readersMenu.DropDownItems.Add(new ToolStripMenuItem("Удалить", null, (_, _) => DeleteReader()));
+        var booksMenu = new ToolStripMenuItem("Книги");
+        booksMenu.DropDownItems.Add(new ToolStripMenuItem("Добавить", null, (_, _) => AddBook()));
+        booksMenu.DropDownItems.Add(new ToolStripMenuItem("Удалить", null, (_, _) => DeleteBook()));
+        directoriesMenu.DropDownItems.Add(readersMenu);
+        directoriesMenu.DropDownItems.Add(booksMenu);
+
+        var operationsMenu = new ToolStripMenuItem("Операции");
+        var loansMenu = new ToolStripMenuItem("Выдачи");
+        loansMenu.DropDownItems.Add(new ToolStripMenuItem("Оформить", null, (_, _) => CreateLoan()));
+        loansMenu.DropDownItems.Add(new ToolStripMenuItem("Возврат", null, (_, _) => ReturnLoan()));
+        operationsMenu.DropDownItems.Add(loansMenu);
+
+        var reportsMenu = new ToolStripMenuItem("Отчёты");
+        reportsMenu.DropDownItems.Add(new ToolStripMenuItem("Обновить", null, (_, _) => LoadReports()));
+
+        var helpMenu = new ToolStripMenuItem("Справка");
+        helpMenu.DropDownItems.Add(new ToolStripMenuItem("О программе", null, (_, _) =>
+            MessageBox.Show(
+                this,
+                "Система управления библиотекой.\nИспользуйте вкладки и меню для работы со справочниками, выдачами и отчётами.",
+                "О программе",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information)));
+
+        menu.Items.Add(fileMenu);
+        menu.Items.Add(sectionsMenu);
+        menu.Items.Add(directoriesMenu);
+        menu.Items.Add(operationsMenu);
+        menu.Items.Add(reportsMenu);
+        menu.Items.Add(helpMenu);
+
+        return menu;
+    }
+
+    private ToolStripMenuItem CreateNavigateItem(string title, TabPage page)
+    {
+        return new ToolStripMenuItem(title, null, (_, _) => _tabs.SelectedTab = page);
     }
 
     private TabPage CreateReadersTab()
