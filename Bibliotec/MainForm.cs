@@ -35,6 +35,27 @@ public sealed class MainForm : Form
     private readonly TextBox _orderCodeBox = new();
     private readonly ListBox _selectedBooksList = new();
     private readonly BindingList<Book> _selectedLoanBooks = new();
+    private readonly BindingList<Book> _homeOrderBooks = new();
+    private readonly BindingList<Book> _homeLoanBooks = new();
+
+    private ComboBox _homeOrderReaderCombo = null!;
+    private ComboBox _homeOrderBookCombo = null!;
+    private ListBox _homeOrderBooksList = null!;
+    private Label _homeOrderCodesLabel = null!;
+    private Button _homeOrderAddBookButton = null!;
+    private Button _homeOrderRemoveBookButton = null!;
+    private Button _homeCreateOrderButton = null!;
+
+    private ComboBox _homeLoanReaderCombo = null!;
+    private ComboBox _homeLoanBookCombo = null!;
+    private DateTimePicker _homeLoanDatePicker = null!;
+    private DateTimePicker _homeDueDatePicker = null!;
+    private ListBox _homeLoanBooksList = null!;
+    private TextBox _homeIssueCodeBox = null!;
+    private Button _homeLoanAddBookButton = null!;
+    private Button _homeLoanRemoveBookButton = null!;
+    private Button _homeCreateLoanButton = null!;
+    private Button _homeIssueOrderButton = null!;
 
     private readonly MenuStrip _menu = new();
     private ToolStripMenuItem _sectionsMenu = null!;
@@ -558,6 +579,17 @@ public sealed class MainForm : Form
         layout.Controls.Add(buttonsPanel, 0, 2);
         layout.SetColumnSpan(buttonsPanel, 2);
 
+        if (role == UserRole.Reader)
+        {
+            layout.Controls.Add(BuildHomeOrderPanel(), 0, 3);
+            layout.SetColumnSpan(layout.GetControlFromPosition(0, 3), 2);
+        }
+        else
+        {
+            layout.Controls.Add(BuildHomeLoanPanel(), 0, 3);
+            layout.SetColumnSpan(layout.GetControlFromPosition(0, 3), 2);
+        }
+
         page.Controls.Add(layout);
     }
 
@@ -572,6 +604,145 @@ public sealed class MainForm : Form
         };
         button.Click += (_, _) => _tabs.SelectedTab = target;
         container.Controls.Add(button);
+    }
+
+    private Control BuildHomeOrderPanel()
+    {
+        var group = new GroupBox
+        {
+            Text = "Оформление заказа",
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12)
+        };
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 4,
+            RowCount = 4
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 110));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+
+        _homeOrderReaderCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+        _homeOrderBookCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+        _homeOrderBooksList = new ListBox { Dock = DockStyle.Fill };
+        _homeOrderBooksList.DataSource = _homeOrderBooks;
+        _homeOrderBooksList.DisplayMember = "Title";
+        _homeOrderCodesLabel = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+
+        _homeOrderAddBookButton = new Button { Text = "➕ Добавить" };
+        _homeOrderAddBookButton.Click += (_, _) => AddHomeOrderBook();
+        _homeOrderRemoveBookButton = new Button { Text = "Удалить" };
+        _homeOrderRemoveBookButton.Click += (_, _) => RemoveHomeOrderBook();
+        _homeCreateOrderButton = new Button { Text = "Оформить заказ", Dock = DockStyle.Fill };
+        _homeCreateOrderButton.Click += (_, _) => CreateHomeOrders();
+
+        layout.Controls.Add(new Label { Text = "Читатель", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+        layout.Controls.Add(_homeOrderReaderCombo, 1, 0);
+        layout.Controls.Add(new Label { Text = "Книга", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 2, 0);
+        layout.Controls.Add(_homeOrderBookCombo, 3, 0);
+
+        var orderButtons = new FlowLayoutPanel { Dock = DockStyle.Fill };
+        orderButtons.Controls.Add(_homeOrderAddBookButton);
+        orderButtons.Controls.Add(_homeOrderRemoveBookButton);
+
+        layout.Controls.Add(new Label { Text = "Список книг", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 1);
+        layout.Controls.Add(orderButtons, 1, 1);
+        layout.SetColumnSpan(orderButtons, 3);
+
+        layout.Controls.Add(_homeOrderBooksList, 0, 2);
+        layout.SetColumnSpan(_homeOrderBooksList, 4);
+
+        layout.Controls.Add(_homeCreateOrderButton, 0, 3);
+        layout.Controls.Add(_homeOrderCodesLabel, 1, 3);
+        layout.SetColumnSpan(_homeOrderCodesLabel, 3);
+
+        group.Controls.Add(layout);
+        LoadReaders();
+        LoadBooks();
+        return group;
+    }
+
+    private Control BuildHomeLoanPanel()
+    {
+        var group = new GroupBox
+        {
+            Text = "Выдачи",
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12)
+        };
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 4,
+            RowCount = 5
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 110));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+
+        _homeLoanReaderCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+        _homeLoanBookCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+        _homeLoanDatePicker = new DateTimePicker { Value = DateTime.Today };
+        _homeDueDatePicker = new DateTimePicker { Value = DateTime.Today.AddDays(14) };
+        _homeLoanBooksList = new ListBox { Dock = DockStyle.Fill };
+        _homeLoanBooksList.DataSource = _homeLoanBooks;
+        _homeLoanBooksList.DisplayMember = "Title";
+        _homeIssueCodeBox = new TextBox();
+
+        _homeLoanAddBookButton = new Button { Text = "➕ Добавить" };
+        _homeLoanAddBookButton.Click += (_, _) => AddHomeLoanBook();
+        _homeLoanRemoveBookButton = new Button { Text = "Удалить" };
+        _homeLoanRemoveBookButton.Click += (_, _) => RemoveHomeLoanBook();
+        _homeCreateLoanButton = new Button { Text = "Оформить выдачу", Dock = DockStyle.Fill };
+        _homeCreateLoanButton.Click += (_, _) => CreateHomeLoan();
+        _homeIssueOrderButton = new Button { Text = "Выдать по коду", Dock = DockStyle.Fill };
+        _homeIssueOrderButton.Click += (_, _) => IssueHomeOrder();
+
+        layout.Controls.Add(new Label { Text = "Читатель", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+        layout.Controls.Add(_homeLoanReaderCombo, 1, 0);
+        layout.Controls.Add(new Label { Text = "Книга", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 2, 0);
+        layout.Controls.Add(_homeLoanBookCombo, 3, 0);
+
+        layout.Controls.Add(new Label { Text = "Дата выдачи", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 1);
+        layout.Controls.Add(_homeLoanDatePicker, 1, 1);
+        layout.Controls.Add(new Label { Text = "Срок возврата", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 2, 1);
+        layout.Controls.Add(_homeDueDatePicker, 3, 1);
+
+        var loanButtons = new FlowLayoutPanel { Dock = DockStyle.Fill };
+        loanButtons.Controls.Add(_homeLoanAddBookButton);
+        loanButtons.Controls.Add(_homeLoanRemoveBookButton);
+
+        layout.Controls.Add(new Label { Text = "Список книг", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 2);
+        layout.Controls.Add(loanButtons, 1, 2);
+        layout.SetColumnSpan(loanButtons, 3);
+
+        layout.Controls.Add(_homeLoanBooksList, 0, 3);
+        layout.SetColumnSpan(_homeLoanBooksList, 4);
+
+        layout.Controls.Add(new Label { Text = "Код заказа", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 4);
+        layout.Controls.Add(_homeIssueCodeBox, 1, 4);
+        layout.Controls.Add(_homeIssueOrderButton, 2, 4);
+        layout.Controls.Add(_homeCreateLoanButton, 3, 4);
+
+        group.Controls.Add(layout);
+        LoadReaders();
+        LoadBooks();
+        return group;
     }
 
     private static string GetRoleTitle(UserRole role)
@@ -610,6 +781,21 @@ public sealed class MainForm : Form
         _orderReaderCombo.DataSource = readers.Select(r => new { r.Id, r.FullName }).ToList();
         _orderReaderCombo.DisplayMember = "FullName";
         _orderReaderCombo.ValueMember = "Id";
+        if (_homeOrderReaderCombo is not null)
+        {
+            _homeOrderReaderCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            _homeOrderReaderCombo.DataSource = readers.Select(r => new { r.Id, r.FullName }).ToList();
+            _homeOrderReaderCombo.DisplayMember = "FullName";
+            _homeOrderReaderCombo.ValueMember = "Id";
+        }
+
+        if (_homeLoanReaderCombo is not null)
+        {
+            _homeLoanReaderCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            _homeLoanReaderCombo.DataSource = readers.Select(r => new { r.Id, r.FullName }).ToList();
+            _homeLoanReaderCombo.DisplayMember = "FullName";
+            _homeLoanReaderCombo.ValueMember = "Id";
+        }
     }
 
     private void LoadBooks()
@@ -619,6 +805,19 @@ public sealed class MainForm : Form
         _bookCombo.DataSource = books;
         _bookCombo.DisplayMember = "Title";
         _bookCombo.ValueMember = "Id";
+        if (_homeOrderBookCombo is not null)
+        {
+            _homeOrderBookCombo.DataSource = books.ToList();
+            _homeOrderBookCombo.DisplayMember = "Title";
+            _homeOrderBookCombo.ValueMember = "Id";
+        }
+
+        if (_homeLoanBookCombo is not null)
+        {
+            _homeLoanBookCombo.DataSource = books.ToList();
+            _homeLoanBookCombo.DisplayMember = "Title";
+            _homeLoanBookCombo.ValueMember = "Id";
+        }
     }
 
     private void LoadLoans()
@@ -725,6 +924,141 @@ public sealed class MainForm : Form
         {
             MessageBox.Show(this, ex.Message, "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+    }
+
+    private void AddHomeOrderBook()
+    {
+        if (_homeOrderBookCombo.SelectedItem is not Book book)
+        {
+            return;
+        }
+
+        if (_homeOrderBooks.Any(selected => selected.Id == book.Id))
+        {
+            MessageBox.Show(this, "Эта книга уже добавлена в список.", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        _homeOrderBooks.Add(book);
+    }
+
+    private void RemoveHomeOrderBook()
+    {
+        if (_homeOrderBooksList.SelectedItem is not Book book)
+        {
+            return;
+        }
+
+        _homeOrderBooks.Remove(book);
+    }
+
+    private void CreateHomeOrders()
+    {
+        if (_homeOrderReaderCombo.SelectedValue is not int readerId)
+        {
+            MessageBox.Show(this, "Выберите читателя.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (_homeOrderBooks.Count == 0)
+        {
+            MessageBox.Show(this, "Добавьте хотя бы одну книгу через кнопку «➕ Добавить».", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var codes = new List<string>();
+        foreach (var book in _homeOrderBooks)
+        {
+            try
+            {
+                codes.Add(_repository.CreateOrder(readerId, book.Id, DateTime.Today));
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(this, ex.Message, "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+        }
+
+        _homeOrderBooks.Clear();
+        LoadOrders();
+        _homeOrderCodesLabel.Text = $"Коды подтверждения: {string.Join(", ", codes)}";
+        MessageBox.Show(this, $"Заказ оформлен. Коды подтверждения: {string.Join(", ", codes)}.", "Успешно", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private void AddHomeLoanBook()
+    {
+        if (_homeLoanBookCombo.SelectedItem is not Book book)
+        {
+            return;
+        }
+
+        if (_homeLoanBooks.Any(selected => selected.Id == book.Id))
+        {
+            MessageBox.Show(this, "Эта книга уже добавлена в список.", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        _homeLoanBooks.Add(book);
+    }
+
+    private void RemoveHomeLoanBook()
+    {
+        if (_homeLoanBooksList.SelectedItem is not Book book)
+        {
+            return;
+        }
+
+        _homeLoanBooks.Remove(book);
+    }
+
+    private void CreateHomeLoan()
+    {
+        if (_homeLoanReaderCombo.SelectedValue is not int readerId)
+        {
+            MessageBox.Show(this, "Выберите читателя.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (_homeLoanBooks.Count == 0)
+        {
+            MessageBox.Show(this, "Добавьте хотя бы одну книгу через кнопку «➕ Добавить».", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        foreach (var book in _homeLoanBooks)
+        {
+            _repository.CreateLoan(readerId, book.Id, _homeLoanDatePicker.Value.Date, _homeDueDatePicker.Value.Date);
+        }
+
+        _homeLoanBooks.Clear();
+        LoadLoans();
+        LoadReports();
+        MessageBox.Show(this, "Выдача оформлена.", "Успешно", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private void IssueHomeOrder()
+    {
+        var code = _homeIssueCodeBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            MessageBox.Show(this, "Введите код подтверждения.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var pendingOrder = _repository.GetPendingOrderByCode(code);
+        if (pendingOrder is null)
+        {
+            MessageBox.Show(this, "Заказ с таким кодом не найден или уже выдан.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        _repository.CreateLoan(pendingOrder.Value.ReaderId, pendingOrder.Value.BookId, _homeLoanDatePicker.Value.Date, _homeDueDatePicker.Value.Date);
+        _repository.MarkOrderIssued(pendingOrder.Value.OrderId);
+        LoadLoans();
+        LoadOrders();
+        LoadReports();
+        MessageBox.Show(this, "Заказ выдан и оформлен как выдача.", "Успешно", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void CreateLoan()
